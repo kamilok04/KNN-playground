@@ -1,15 +1,17 @@
 import heapq
 import bisect
+from utility import * 
 
 class MTree:
-    def __init__(self, node_size=8, KNN_size=8):
+    def __init__(self, node_size=4, KNN_size=4, distance_metric = 'euclidean'):
         self.node_size = node_size
         self.KNN_size = KNN_size
         self.root = MTree.Node(node_size=node_size)
+        self.distance_metric = distance_metric
 
 
     class Node:
-        def __init__(self, node_size=8, is_leaf=True, parent=None):
+        def __init__(self, node_size=4, is_leaf=True, parent=None):
             self.entries = []
             self.is_leaf = is_leaf
             self.parent = parent
@@ -48,13 +50,13 @@ class MTree:
         pq = []
         if not node.is_leaf:
             for entry in node.entries:
-                dist = self.compute_distance(entry.obj, query)
+                dist = compute_distance(entry.obj, query, self.distance_metric)
                 min_dist = max(0, dist - entry.radius)
                 if min_dist <= d_k:
                     heapq.heappush(pq, (min_dist, entry.subtree))
         else:
             for entry in node.entries:
-                dist = self.compute_distance(entry.obj, query)
+                dist = compute_distance(entry.obj, query, self.distance_metric)
                 if dist <= d_k:
                     d_k = self.NN_update( (dist, entry.obj), k, neighbours)
         
@@ -86,7 +88,7 @@ class MTree:
             min_enlargement = float('inf')
             
             for entry in node.entries:
-                dist = self.compute_distance(entry.obj, obj)
+                dist = compute_distance(entry.obj, obj, self.distance_metric)
                 if dist <= entry.radius:
                     enlargement = dist - entry.radius
                     if enlargement < min_enlargement or (enlargement == min_enlargement and dist < min_dist):
@@ -97,17 +99,17 @@ class MTree:
             if best_entry:
                 self.insert(obj, best_entry.subtree)
                 # Update radius if needed
-                dist = self.compute_distance(best_entry.obj, obj)
+                dist = compute_distance(best_entry.obj, obj, self.distance_metric)
                 if dist > best_entry.radius:
                     best_entry.radius = dist
                 return
             else:
                 # No suitable entry found, find entry requiring minimal radius enlargement
                 best_entry = min(node.entries, 
-                               key=lambda e: self.compute_distance(e.obj, obj) - e.radius)
+                               key=lambda e: compute_distance(e.obj, obj, self.distance_metric) - e.radius)
                 self.insert(obj, best_entry.subtree)
                 # Update radius
-                dist = self.compute_distance(best_entry.obj, obj)
+                dist = compute_distance(best_entry.obj, obj, self.distance_metric)
                 best_entry.radius = max(best_entry.radius, dist)
                 return
         else:
@@ -136,11 +138,11 @@ class MTree:
         
         # Update original node
         node.entries = group1
-        node.radius = max(self.compute_distance(promoted1.obj, e.obj) for e in group1) if group1 else 0
+        node.radius = max(compute_distance(promoted1.obj, e.obj, self.distance_metric) for e in group1) if group1 else 0
         
         # Update new node
         new_node.entries = group2
-        new_node.radius = max(self.compute_distance(promoted2.obj, e.obj) for e in group2) if group2 else 0
+        new_node.radius = max(compute_distance(promoted2.obj, e.obj, self.distance_metric) for e in group2) if group2 else 0
         
         # Handle parent updates
         if node is self.root:
@@ -177,7 +179,7 @@ class MTree:
         
         for i in range(len(entries)):
             for j in range(i+1, len(entries)):
-                dist = self.compute_distance(entries[i].obj, entries[j].obj)
+                dist = compute_distance(entries[i].obj, entries[j].obj, self.distance_metric)
                 if dist > max_distance:
                     max_distance = dist
                     best_pair = (entries[i], entries[j])
@@ -189,8 +191,8 @@ class MTree:
         group2 = []
         
         for entry in entries:
-            dist1 = self.compute_distance(entry.obj, obj1)
-            dist2 = self.compute_distance(entry.obj, obj2)
+            dist1 = compute_distance(entry.obj, obj1, self.distance_metric)
+            dist2 = compute_distance(entry.obj, obj2, self.distance_metric)
             
             if dist1 < dist2:
                 group1.append(entry)
@@ -198,15 +200,3 @@ class MTree:
                 group2.append(entry)
         
         return group1, group2
-
-    def compute_distance(self, obj1, obj2, metric='euclidean'):
-        val1 = obj1.obj if hasattr(obj1, 'obj') else obj1
-        val2 = obj2.obj if hasattr(obj2, 'obj') else obj2
-
-        if metric == 'manhattan':
-            return sum(abs(x - y) for x, y in zip(val1, val2))
-        elif metric == 'minkowski':
-            p = 3  # tweakable
-            return sum(abs(x - y) ** p for x, y in zip(val1, val2)) ** (1 / p)
-        else:
-            return sum((x - y) ** 2 for x, y in zip(val1, val2)) ** 0.5
