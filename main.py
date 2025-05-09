@@ -1,13 +1,14 @@
 import pandas
 import math
-from queue import PriorityQueue
+import heapq
 
 # locals
 import MTree
+from utility import *
 
 class KNN:
  
-    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, knn_method = 'mtree', soft_method = False):
+    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, knn_method = 'mtree',distance_metric = 'euclidean',soft_method = False):
         self.df = pandas.read_csv(path)
         self.df = self.df.dropna()
         self.reduce_dataset = reduce_dataset
@@ -23,6 +24,7 @@ class KNN:
                 self.keep_mask.append(False)
             else:
                 self.keep_mask.append(True)
+        self.distance_metric = distance_metric
 
 
     def preprocess_data(self):
@@ -53,7 +55,7 @@ class KNN:
         # Implement the CNN reduction algorithm
         for index, row in control.iterrows():
             if keep == []:
-                keep = MTree.MTree()
+                keep = MTree.MTree(KNN_size=self.k)
                 keep.insert(row, keep.root)
             else:
                 neighbours = keep.KNN_search(row, self.k)
@@ -84,7 +86,15 @@ class KNN:
             case 'mtree':
                 neighbours = control.KNN_search(point, self.k)
             case 'bruteforce':
-                pass
+                neighbours = []
+                for _,e in control.iterrows():
+                    neighbours.append((compute_distance(e, point, self.distance_metric), e))
+
+                neighbours = sorted(neighbours,key=lambda e: e[0])[:self.k]
+                neighbours = [a[1] for a in neighbours]
+            case _:
+                raise Exception('Invalid KNN method!')
+        # print(f'Neighbours: {neighbours}'
         classification = self.cast_votes(neighbours)
         return classification
 
@@ -112,14 +122,9 @@ class KNN:
 
     def classify_test_set(self, control, test):
         classifications = []
-        match self.knn_method:
-            case 'mtree':
-                for _, test_point in test.iterrows():
-                    classification = self.classify_point(test_point, control)
-                    classifications.append(classification)
-            case 'bruteforce':
-                # input is a flat array
-                pass
+        for _, test_point in test.iterrows():
+            classification = self.classify_point(test_point, control)
+            classifications.append(classification)
         return classifications
 
 
@@ -135,7 +140,7 @@ class KNN:
                 case 'mtree':
                     classified_test = self.classify_test_set(reduce_keep, prepared_test)
                 case 'bruteforce':
-                    for item in reduce_discard: control.remove(item)
+                    for item in reduce_discard: control.drop(item.name)
                     classified_test = self.classify_test_set(control, prepared_test)
         if classified_test is None or len(classified_test) != len(test):
             raise Exception('something got derailed!')
@@ -149,16 +154,23 @@ class KNN:
             if actual == expected: score += 1
         # for actual, expected in zip(test[self.classes_to_determine]
         accuracy = score * 100 / len(test)
-        print(f'Accuracy: {accuracy}%')
+        print(f'Method: {self.knn_method}, metric: {self.distance_metric}, accuracy: {accuracy}%')
 
         
     def remove_unknown_properties(self, dataset):
         return dataset[dataset.columns[self.keep_mask]]
-        
 
-knn = KNN('iris.csv', 2, soft_method=False)
+
+knn = KNN('iris.csv', 1, knn_method='bruteforce')
+for metric in ('euclidean', 'manhattan', 'minkowski'):
+    knn.distance_metric = metric
+    for method in ('mtree', 'bruteforce'):
+        knn.knn_method = method
+        knn.driver()
+
+knn2 = KNN('iris.csv', 2, soft_method=False)
 print('KNN')
-knn.driver()
+knn2.driver()
 
 knn_soft = KNN('iris.csv', 2, soft_method=True)
 print('KNN soft')
