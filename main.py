@@ -7,10 +7,22 @@ import MTree
 
 class KNN:
  
-    def __init__(self, path, k):
+    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, knn_method = 'mtree'):
         self.df = pandas.read_csv(path)
         self.df = self.df.dropna()
+        self.reduce_dataset = reduce_dataset
+        self.knn_method = knn_method
         self.k = k
+        if classes_to_determine is None:
+            self.classes_to_determine = ['variety']
+        else: self.classes_to_determine = classes_to_determine
+        self.keep_mask = []
+        for column in self.df:
+            if column in self.classes_to_determine:
+                self.keep_mask.append(False)
+            else:
+                self.keep_mask.append(True)
+
 
     def preprocess_data(self):
         """
@@ -18,6 +30,7 @@ class KNN:
         """
         for column in self.df:
             self.df = self.df.apply(lambda x: pandas.factorize(x)[0])
+        
 
     
     def shuffle(self, data = None, ratio = 70):
@@ -44,7 +57,8 @@ class KNN:
             else:
                 neighbours = keep.KNN_search(row, self.k)
                 classification = self.cast_votes(neighbours)
-                if classification != row.iloc[-1]:
+                t = tuple(row[self.classes_to_determine].to_numpy().tolist())
+                if classification != t:
                     keep.insert(row, keep.root)
                 else:
                     discard.append(row)
@@ -61,10 +75,15 @@ class KNN:
                     changes_made = True
                     break
 
-        print(f'Odrzuconych indeksów: {len(discard)}')
+        # print(f'Odrzuconych indeksów: {len(discard)}')
+        return keep, discard
 
     def classify_point(self, point, control):
-        neighbours = control.KNN_search(point, self.k)
+        match self.knn_method:
+            case 'mtree':
+                neighbours = control.KNN_search(point, self.k)
+            case 'bruteforce':
+                pass
         classification = self.cast_votes(neighbours)
         return classification
 
@@ -77,18 +96,61 @@ class KNN:
         """
         votes = {}
         for neighbor in neighbours:
-            classification = neighbor.iloc[-1]
+            classification = tuple(neighbor[self.classes_to_determine].to_numpy().tolist())
             if classification in votes:
                 votes[classification] += 1
             else:
                 votes[classification] = 1
         
-        return max(votes.items(), key=lambda x: x[1])[0]
+        return max(votes, key=votes.get)
+
+    def classify_test_set(self, control, test):
+        classifications = []
+        match self.knn_method:
+            case 'mtree':
+                for _, test_point in test.iterrows():
+                    classification = self.classify_point(test_point, control)
+                    classifications.append(classification)
+            case 'bruteforce':
+                # input is a flat array
+                pass
+        return classifications
+
 
     def driver(self):
         self.preprocess_data()
         control, test = self.shuffle()
-        self.CNN_reduction(control)
+        prepared_test = test.copy()
+        prepared_test = self.remove_unknown_properties(prepared_test)
+        classified_test = None
+        if self.reduce_dataset:
+            reduce_keep, reduce_discard = self.CNN_reduction(control)
+            match self.knn_method:
+                case 'mtree':
+                    classified_test = self.classify_test_set(reduce_keep, prepared_test)
+                case 'bruteforce':
+                    for item in reduce_discard: control.remove(item)
+                    classified_test = self.classify_test_set(control, prepared_test)
+        if classified_test is None or len(classified_test) != len(test):
+            raise Exception('something got derailed!')
+            return
+        self.analyze_results(control, test, classified_test)
 
-knn = KNN('student-mat.csv', 8)
+    def analyze_results(self, control, test, classifications):
+        score = 0
+        for actual, expected in zip(test[self.classes_to_determine].iterrows(), classifications):
+            actual = tuple(actual[1].to_numpy().tolist())
+            if actual == expected: score += 1
+        # for actual, expected in zip(test[self.classes_to_determine]
+        accuracy = score * 100 / len(test)
+        print(f'Accuracy: {accuracy}%')
+
+        
+
+        
+    def remove_unknown_properties(self, dataset):
+        return dataset[dataset.columns[self.keep_mask]]
+        
+
+knn = KNN('iris.csv', 2)
 knn.driver()
