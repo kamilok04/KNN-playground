@@ -35,6 +35,15 @@ class analyzeData:
         """
         for column in self.df:
             self.df = self.df.apply(lambda x: pandas.factorize(x)[0])
+
+    def shuffle(self, data = None, ratio = 70):
+        if data is None:
+            data = self.df
+        border = len(data) * ratio // 100
+        shuffled = data.sample(frac=1)
+        control = shuffled.iloc[:border]
+        test = shuffled.iloc[border:]
+        return control, test
            
         
 

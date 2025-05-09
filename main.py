@@ -7,11 +7,12 @@ import MTree
 
 class KNN:
  
-    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, knn_method = 'mtree'):
+    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, knn_method = 'mtree', soft_method = False):
         self.df = pandas.read_csv(path)
         self.df = self.df.dropna()
         self.reduce_dataset = reduce_dataset
         self.knn_method = knn_method
+        self.soft_method = soft_method
         self.k = k
         if classes_to_determine is None:
             self.classes_to_determine = ['variety']
@@ -37,7 +38,7 @@ class KNN:
         if data is None:
             data = self.df
         border = len(data) * ratio // 100
-        shuffled = data.sample(frac=1)
+        shuffled = data.sample(frac=1,random_state=32)
         control = shuffled.iloc[:border]
         test = shuffled.iloc[border:]
         return control, test
@@ -91,18 +92,23 @@ class KNN:
         """
         Cast votes based on the k nearest neighbors.
         Return the class with the most votes.
-
-        TODO: soft sets go here!
         """
         votes = {}
-        for neighbor in neighbours:
-            classification = tuple(neighbor[self.classes_to_determine].to_numpy().tolist())
-            if classification in votes:
-                votes[classification] += 1
-            else:
-                votes[classification] = 1
-        
+        if self.soft_method == False:
+            for neighbor, distance in neighbours:
+                classification = tuple(neighbor[self.classes_to_determine].to_numpy().tolist())
+                if classification in votes:
+                    votes[classification] += 1
+                else:
+                    votes[classification] = 1
+        else:
+             for neighbor, distance in neighbours:
+                classification = tuple(neighbor[self.classes_to_determine].to_numpy().tolist())
+                weight = 1 / (distance + 1e-5) 
+                votes[classification] = votes.get(classification, 0) + weight
+
         return max(votes, key=votes.get)
+    
 
     def classify_test_set(self, control, test):
         classifications = []
@@ -146,11 +152,14 @@ class KNN:
         print(f'Accuracy: {accuracy}%')
 
         
-
-        
     def remove_unknown_properties(self, dataset):
         return dataset[dataset.columns[self.keep_mask]]
         
 
-knn = KNN('iris.csv', 2)
+knn = KNN('iris.csv', 2, soft_method=False)
+print('KNN')
 knn.driver()
+
+knn_soft = KNN('iris.csv', 2, soft_method=True)
+print('KNN soft')
+knn_soft.driver()

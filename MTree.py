@@ -41,8 +41,8 @@ class MTree:
             if dist > d_k:
                 continue
             d_k = self.KNN_node_search(node, query, k, d_k, neighbours)
-            
-        return [x[1] for x in neighbours]
+        
+        return [(x[1],x[0]) for x in neighbours]
 
     def KNN_node_search(self, node, query, k, d_k, neighbours):
         pq = []
