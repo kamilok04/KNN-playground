@@ -44,9 +44,9 @@ class analyzeData:
         control = shuffled.iloc[:border]
         test = shuffled.iloc[border:]
         return control, test
-           
-        
 
+    
+           
 dataAnalytics = analyzeData('student-mat.csv')
 dataAnalytics.preprocess_data()
 #dataAnalytics.plot()

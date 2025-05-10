@@ -8,7 +8,7 @@ from utility import *
 
 class KNN:
  
-    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, normalization_method='minmax', knn_method = 'mtree',distance_metric = 'euclidean',soft_method = False):
+    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, normalization_method='minmax', knn_method = 'mtree',distance_metric = 'euclidean',voting_method = 'hard'):
         """Initialize KNN searching class.
 
         Args:
@@ -24,21 +24,21 @@ class KNN:
             knn_method (str, optional): 
                 The underlying structure of the algorithm. 
                 Current options are: 'mtree', 'bruteforce'. 
-            
             distance_metric (str, optional):
                 What metric should the algorithm use when computing distances?
                 Current options are 'euclidean', 'minkowski', 'manhattan'
                 Defaults to 'euclidean'.
-            soft_method (bool, optional): 
-                Should we implement soft sets into the classification mechanism? 
-                Defaults to False.
+            voting_method (str, optional): 
+                What voting method should the algorithm use? 
+                Current options are 'hard' and 'soft'.
+                Defaults to 'hard'.
         """
         self.df = pandas.read_csv(path)
         self.df = self.df.dropna()
         self.reduce_dataset = reduce_dataset
         self.normalization_method = normalization_method
         self.knn_method = knn_method
-        self.soft_method = soft_method
+        self.voting_method = voting_method
         self.k = k
         if classes_to_determine is None:
             self.classes_to_determine = ['variety']
@@ -87,7 +87,7 @@ class KNN:
         if data is None:
             data = self.df
         border = len(data) * control_percentage // 100
-        shuffled = data.sample(frac=1)
+        shuffled = data.sample(frac=1, random_state=42)
         output = {}
 
         if not normalize_only:
@@ -197,14 +197,14 @@ class KNN:
         Return the class with the most votes.
         """
         votes = {}
-        if self.soft_method == False:
+        if self.voting_method == 'hard':
             for neighbor, distance in neighbours:
                 classification = tuple(neighbor[self.classes_to_determine].to_numpy().tolist())
                 if classification in votes:
                     votes[classification] += 1
                 else:
                     votes[classification] = 1
-        else:
+        if self.voting_method == 'soft':
              for neighbor, distance in neighbours:
                 classification = tuple(neighbor[self.classes_to_determine].to_numpy().tolist())
                 weight = 1 / (distance + 1e-5) 
@@ -252,7 +252,8 @@ class KNN:
             if actual == expected: score += 1
         # for actual, expected in zip(test[self.classes_to_determine]
         accuracy = score * 100 / len(test)
-        print(f'Method: {self.knn_method} (using {key} data, {f'normalized using {self.normalization_method}' if key == 'normalized' else '' }), metric: {self.distance_metric}, accuracy: {accuracy}%')
+        normalized = f'normalized using {self.normalization_method}' if key == 'normalized' else '' 
+        print(f'Method: {self.knn_method} (using {key} data, {normalized}), metric: {self.distance_metric}, accuracy: {accuracy}%')
 
         
     def remove_unknown_properties(self, dataset):
