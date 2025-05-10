@@ -73,7 +73,7 @@ class MTree:
         neighbours.insert(insert_pos, (distance, obj))
         
         if len(neighbours) > k:
-            neighbours = neighbours[:k]
+            del neighbours[k:]
         
         return neighbours[-1][0] if len(neighbours) >= k else float('inf')
 
@@ -128,7 +128,9 @@ class MTree:
         if node.is_leaf:
             all_entries.append(self.Entry(new_obj))
         else:
-            all_entries.append(self.Entry(new_obj.obj, new_obj.radius, new_obj.subtree))
+            if isinstance(new_obj, self.Entry):
+                all_entries.append(new_obj)
+            else: all_entries.append(self.Entry(new_obj))
         
         # Promote two entries
         promoted1, promoted2 = self.promote(all_entries)
@@ -183,7 +185,10 @@ class MTree:
                 if dist > max_distance:
                     max_distance = dist
                     best_pair = (entries[i], entries[j])
-        
+
+        if best_pair is None or len(best_pair) < 2:
+            raise ValueError("Cannot promote from fewer than 2 entries.")
+
         return best_pair[0], best_pair[1]
 
     def partition(self, entries, obj1, obj2, strategy='closest'):
@@ -196,7 +201,9 @@ class MTree:
             
             if dist1 < dist2:
                 group1.append(entry)
-            else:
+            elif dist2 < dist1:
                 group2.append(entry)
+            else:
+                (group1 if len(group1) <= len(group2) else group2).append(entry)
         
         return group1, group2
