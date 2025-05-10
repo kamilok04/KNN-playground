@@ -87,7 +87,7 @@ class KNN:
         if data is None:
             data = self.df
         border = len(data) * control_percentage // 100
-        shuffled = data.sample(frac=1, random_state=42)
+        shuffled = data.sample(frac=1, random_state=1) #good samples: 32, 1,2
         output = {}
 
         if not normalize_only:
@@ -148,7 +148,7 @@ class KNN:
         # Implement the CNN reduction algorithm
         for index, row in control.iterrows():
             if keep == []:
-                keep = MTree.MTree(KNN_size=self.k)
+                keep = MTree.MTree(KNN_size=self.k,distance_metric=self.distance_metric)
                 keep.insert(row, keep.root)
             else:
                 neighbours = keep.KNN_search(row, self.k)

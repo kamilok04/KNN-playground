@@ -6,11 +6,11 @@ from KNN import *  # adjust if class is in a subfolder or renamed
 class TestKNNAccuracy(unittest.TestCase):
 
     def setUp(self):
-        self.data_path = 'iris.csv'
+        self.data_path = 'heart.csv'
         self.metrics = ['euclidean', 'manhattan', 'minkowski', 'chebyshev']
         self.k_values = [3, 5, 7]
         self.voting = ['soft', 'hard']
-        self.target = ['variety']
+        self.target = ['HeartDisease']
 
     def test_mtree(self):
         self.driver('mtree')
