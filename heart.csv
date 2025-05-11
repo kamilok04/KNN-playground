@@ -398,4 +398,5 @@ Age,Sex,ChestPainType,RestingBP,Cholesterol,FastingBS,RestingECG,MaxHR,ExerciseA
 62,F,TA,140,0,1,Normal,143,N,0,Flat,1
 58,M,ASY,170,0,1,ST,105,Y,0,Flat,1
 52,M,ASY,165,0,1,Normal,122,Y,1,Up,1
+61,M,NAP,200,0,1,ST,70,N,0,Flat,1
 
