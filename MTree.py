@@ -102,7 +102,7 @@ class MTree:
                 dist = compute_distance(best_entry.obj, obj, self.distance_metric)
                 if dist > best_entry.radius:
                     best_entry.radius = dist
-                    self.propagate_radius_update(best_entry)
+                    #self.propagate_radius_update(best_entry)
                 return
             else:
                 # No suitable entry found, find entry requiring minimal radius enlargement
@@ -163,8 +163,8 @@ class MTree:
                 if entry.subtree == node:
                     updated_entry = self.Entry(promoted1.obj, node.radius, node)
                     parent.entries[i] = updated_entry
-                    if updated_entry.radius > entry.radius:
-                        self.propagate_radius_update(updated_entry)
+                   # if updated_entry.radius > entry.radius:
+                    #    self.propagate_radius_update(updated_entry)
                     break
             new_parent_entry = self.Entry(promoted2.obj, new_node.radius, new_node)
             new_node.parent = parent

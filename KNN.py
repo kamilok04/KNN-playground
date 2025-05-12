@@ -8,7 +8,7 @@ from utility import *
 
 class KNN:
  
-    def __init__(self, path, k, classes_to_determine = None, reduce_dataset = True, normalization_method='minmax', knn_method = 'mtree',distance_metric = 'euclidean',voting_method = 'hard'):
+    def __init__(self, path, k, classes_to_determine, reduce_dataset = True, normalization_method='minmax', knn_method = 'mtree',distance_metric = 'euclidean',voting_method = 'hard'):
         """Initialize KNN searching class.
 
         Args:
@@ -40,9 +40,7 @@ class KNN:
         self.knn_method = knn_method
         self.voting_method = voting_method
         self.k = k
-        if classes_to_determine is None:
-            self.classes_to_determine = ['variety']
-        else: self.classes_to_determine = classes_to_determine
+        self.classes_to_determine = classes_to_determine
         self.keep_mask = []
         for column in self.df:
             if column in self.classes_to_determine:
@@ -54,15 +52,20 @@ class KNN:
 
 
     def preprocess_data(self):
+        from pandas.api.types import is_numeric_dtype
         """
         Map all non-number features onto sets of numbers. 
         """
+        nonnumeric = []
         for column in self.df:
-            self.df = self.df.apply(lambda x: pandas.factorize(x)[0])
+            if not is_numeric_dtype(self.df[column]):
+                self.df[column], _ = pandas.factorize(self.df[column])
+     
+
         
 
     
-    def shuffle(self, data : pandas.DataFrame = None, control_percentage : float = 70, normalize_only = True):
+    def shuffle(self, data : pandas.DataFrame = None, control_percentage : float = 20):
         """_summary_
 
         Args:
@@ -88,19 +91,14 @@ class KNN:
             data = self.df
         border = len(data) * control_percentage // 100
         shuffled = data.sample(frac=1, random_state=1) #good samples: 32, 1,2
-        output = {}
 
-        if not normalize_only:
-            output['regular'] = (shuffled.iloc[:border], shuffled.iloc[border:])
-    
-        normalized_shuffled = self.normalize_dataset(shuffled)
-        output['normalized'] = (
-            normalized_shuffled.iloc[:border], 
-            normalized_shuffled.iloc[border:]
+        output =  (
+            shuffled.iloc[:border], 
+            shuffled.iloc[border:]
         )
         return output
 
-    def normalize_dataset(self, dataset, normalization_method = 'zscore'):
+    def normalize_dataset(self, dataset, normalization_method):
         """Normalize a dataset using one of the common techniques.
 
         Args:
@@ -133,6 +131,8 @@ class KNN:
                     q3 = normalized_dataset[column].quantile(0.75)
                     iqr = q3 - q1
                     normalized_dataset[column] = (normalized_dataset[column] - q2) / iqr
+            case 'none':
+                pass
             case _:
                 print('Unknown normalization technique!')
 
@@ -174,7 +174,7 @@ class KNN:
         # print(f'Odrzuconych indeksów: {len(discard)}')
         return keep, discard
 
-    def classify_point(self, point, control, key = 'regular'):
+    def classify_point(self, point, control):
         match self.knn_method:
             case 'mtree':
                 neighbours = control.KNN_search(point, self.k)
@@ -220,41 +220,5 @@ class KNN:
             classifications.append(classification)
         return classifications
 
-
-    def driver(self, normalize_data = True, calculate_nonnormalized = False):
-        self.preprocess_data()
-        shuffled_sets = self.shuffle(normalize=normalize_data)
-        classified_tests = []
-        for key, shuffled_set in shuffled_sets.items():
-            if key == 'regular' and not calculate_nonnormalized: continue
-            control, test = shuffled_set
-            prepared_test = test.copy()
-            prepared_test = self.remove_unknown_properties(prepared_test)
-            classified_test = None
-            if self.reduce_dataset:
-                reduce_keep, reduce_discard = self.CNN_reduction(control)
-                match self.knn_method:
-                    case 'mtree':
-                        classified_test = self.classify_test_set(reduce_keep, prepared_test)
-                    case 'bruteforce':
-                        for item in reduce_discard: control.drop(item.name)
-                        classified_test = self.classify_test_set(control, prepared_test)
-            if classified_test is None or len(classified_test) != len(test):
-                raise Exception('something got derailed!')
-                return
-            classified_tests.append(classified_test)
-        return classified_tests
-
-    def analyze_results(self, control, test, classifications, key = 'regular'):
-        score = 0
-        for actual, expected in zip(test[self.classes_to_determine].iterrows(), classifications):
-            actual = tuple(actual[1].to_numpy().tolist())
-            if actual == expected: score += 1
-        # for actual, expected in zip(test[self.classes_to_determine]
-        accuracy = score * 100 / len(test)
-        normalized = f'normalized using {self.normalization_method}' if key == 'normalized' else '' 
-        print(f'Method: {self.knn_method} (using {key} data, {normalized}), metric: {self.distance_metric}, accuracy: {accuracy}%')
-
-        
     def remove_unknown_properties(self, dataset):
         return dataset[dataset.columns[self.keep_mask]]

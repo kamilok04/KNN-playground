@@ -14,3 +14,4 @@ def compute_distance(obj1, obj2, metric='euclidean'):
         case 'chebyshev': return max(abs(x - y) for x, y in zip(val1, val2))
         case _:
             print('Unknown metrc!')
+
