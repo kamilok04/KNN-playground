@@ -3,7 +3,7 @@ import bisect
 from utility import * 
 
 class MTree:
-    def __init__(self, node_size=4, KNN_size=4, distance_metric = 'euclidean'):
+    def __init__(self, node_size=20, KNN_size=4, distance_metric = 'euclidean'):
         self.node_size = node_size
         self.KNN_size = KNN_size
         self.root = MTree.Node(node_size=node_size)
@@ -102,6 +102,7 @@ class MTree:
                 dist = compute_distance(best_entry.obj, obj, self.distance_metric)
                 if dist > best_entry.radius:
                     best_entry.radius = dist
+                    self.propagate_radius_update(best_entry)
                 return
             else:
                 # No suitable entry found, find entry requiring minimal radius enlargement
@@ -120,35 +121,34 @@ class MTree:
             else:
                 self.split(node, obj)
 
+    
     def split(self, node, new_obj):
-        # Create new node
-        new_node = MTree.Node(node_size=self.node_size, is_leaf=node.is_leaf, parent=node.parent)        
-        # Get all objects including the new one
+        new_node = MTree.Node(node_size=self.node_size, is_leaf=node.is_leaf, parent=node.parent)
         all_entries = node.entries.copy()
+        
         if node.is_leaf:
             all_entries.append(self.Entry(new_obj))
         else:
-            if isinstance(new_obj, self.Entry):
-                all_entries.append(new_obj)
-            else: all_entries.append(self.Entry(new_obj))
+            all_entries.append(new_obj if isinstance(new_obj, self.Entry) else self.Entry(new_obj.obj, new_obj.radius, new_obj.subtree))
         
-        # Promote two entries
         promoted1, promoted2 = self.promote(all_entries)
-        
-        # Partition entries
         group1, group2 = self.partition(all_entries, promoted1.obj, promoted2.obj)
-        
-        # Update original node
+
+        # Correct radius calculation for both leaf and non-leaf nodes
+        def calculate_radius(entries, promoted_obj, is_leaf):
+            if not entries:
+                return 0
+            if is_leaf:
+                return max(compute_distance(promoted_obj, e.obj, self.distance_metric) for e in entries)
+            else:
+                return max(compute_distance(promoted_obj, e.obj, self.distance_metric) + e.radius for e in entries)
+
+        node.radius = calculate_radius(group1, promoted1.obj, node.is_leaf)
+        new_node.radius = calculate_radius(group2, promoted2.obj, new_node.is_leaf)
         node.entries = group1
-        node.radius = max(compute_distance(promoted1.obj, e.obj, self.distance_metric) for e in group1) if group1 else 0
-        
-        # Update new node
         new_node.entries = group2
-        new_node.radius = max(compute_distance(promoted2.obj, e.obj, self.distance_metric) for e in group2) if group2 else 0
-        
-        # Handle parent updates
+        # Update parent references and tree structure
         if node is self.root:
-            # Create new root
             new_root = MTree.Node(node_size=self.node_size, is_leaf=False)
             new_root.entries = [
                 self.Entry(promoted1.obj, node.radius, node),
@@ -158,22 +158,40 @@ class MTree:
             new_node.parent = new_root
             self.root = new_root
         else:
-            # Update parent
             parent = node.parent
-            # Replace the original entry with promoted1
             for i, entry in enumerate(parent.entries):
                 if entry.subtree == node:
-                    parent.entries[i] = self.Entry(promoted1.obj, node.radius, node)
+                    updated_entry = self.Entry(promoted1.obj, node.radius, node)
+                    parent.entries[i] = updated_entry
+                    if updated_entry.radius > entry.radius:
+                        self.propagate_radius_update(updated_entry)
                     break
-            
-            # Add promoted2 to parent
             new_parent_entry = self.Entry(promoted2.obj, new_node.radius, new_node)
             new_node.parent = parent
-            
             if parent.is_full():
                 self.split(parent, new_parent_entry)
             else:
                 parent.entries.append(new_parent_entry)
+
+    def propagate_radius_update(self, entry):
+        current = entry.subtree.parent
+        while current is not None:
+            for e in current.entries:
+                if e.subtree == entry.subtree:
+                    new_radius = max(
+                        compute_distance(e.obj, child.obj, self.distance_metric) + child.radius 
+                        for child in e.subtree.entries
+                    )
+                    if new_radius > e.radius:
+                        e.radius = new_radius
+                        entry = e
+                        current = e.subtree.parent
+                    else:
+                        current = None
+                    break
+            else:
+                current = None
+
 
     def promote(self, entries):
         max_distance = -1

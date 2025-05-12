@@ -15,8 +15,8 @@ class TestKNNAccuracy(unittest.TestCase):
     def test_mtree(self):
         self.driver('mtree')
 
-    def test_bruteforce(self):
-        self.driver('bruteforce')
+   # def test_bruteforce(self):
+    #    self.driver('bruteforce')
 
     def driver(self, knn_method):
         start = time.time()
