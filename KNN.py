@@ -8,7 +8,7 @@ from utility import *
 
 class KNN:
  
-    def __init__(self, path, k, classes_to_determine, reduce_dataset = True, normalization_method='minmax', knn_method = 'mtree',distance_metric = 'euclidean',voting_method = 'hard'):
+    def __init__(self, path, k, classes_to_determine, reduce_dataset = True, normalization_method='minmax', knn_method = 'mtree',distance_metric = 'euclidean',voting_method = 'hard', control_percentage = 20):
         """Initialize KNN searching class.
 
         Args:
@@ -48,8 +48,9 @@ class KNN:
             else:
                 self.keep_mask.append(True)
         self.distance_metric = distance_metric
-
-
+        self.target_entries =None
+        self.control_percentage = control_percentage
+    
 
     def preprocess_data(self):
         from pandas.api.types import is_numeric_dtype
@@ -58,14 +59,16 @@ class KNN:
         """
         nonnumeric = []
         for column in self.df:
+            if column in self.classes_to_determine:
+                self.df[column], self.target_entries = pandas.factorize(self.df[column])
+                continue
             if not is_numeric_dtype(self.df[column]):
                 self.df[column], _ = pandas.factorize(self.df[column])
      
-
         
 
     
-    def shuffle(self, data : pandas.DataFrame = None, control_percentage : float = 20):
+    def shuffle(self, data : pandas.DataFrame = None, control_percentage : float = 20, keep_order = False):
         """_summary_
 
         Args:
@@ -75,9 +78,7 @@ class KNN:
             control_percentage (float, optional): 
                 Percentage of dataset which will go into the control (training) set. 
                 Defaults to 70.
-            normalize_only (bool, optional): 
-            Should the function return only the normalized dataset?. 
-            Defaults to True.
+                If None, the whole dataset is returned without splitting.
 
         Returns:
             dict: A dict of the structure
@@ -89,8 +90,11 @@ class KNN:
         
         if data is None:
             data = self.df
+        if not keep_order: shuffled = data.sample(frac=1)
+        else: shuffled = data
+        if control_percentage is None: return shuffled
+
         border = len(data) * control_percentage // 100
-        shuffled = data.sample(frac=1, random_state=1) #good samples: 32, 1,2
 
         output =  (
             shuffled.iloc[:border], 
@@ -115,22 +119,27 @@ class KNN:
         match normalization_method:
             case 'minmax':
                 for column in normalized_dataset.columns:
-                    normalized_dataset[column] /= normalized_dataset[column].abs().max()
+                    if column not in self.classes_to_determine:
+                        c = normalized_dataset[column]
+                        normalized_dataset[column] = (c - c.min()) / (c.max() - c.min())
             case 'zscore':
                 for column in normalized_dataset.columns:
-                    normalized_dataset[column] = (normalized_dataset[column] - normalized_dataset[column].mean()) / normalized_dataset[column].std()
+                    if column not in self.classes_to_determine:
+                        normalized_dataset[column] = (normalized_dataset[column] - normalized_dataset[column].mean()) / normalized_dataset[column].std()
             case 'decimal_scaling':
                 for column in normalized_dataset.columns:
-                    max_value = normalized_dataset[column].abs().max()
-                    j = math.floor(math.log10(max_value)) + 1
-                    normalized_dataset[column] /= 10 ** j
+                    if column not in self.classes_to_determine:
+                        max_value = normalized_dataset[column].abs().max()
+                        j = math.floor(math.log10(max_value)) + 1
+                        normalized_dataset[column] /= 10 ** j
             case 'robust':
                 for column in normalized_dataset.columns:
-                    q1 = normalized_dataset[column].quantile(0.25)
-                    q2 = normalized_dataset[column].quantile(0.5)
-                    q3 = normalized_dataset[column].quantile(0.75)
-                    iqr = q3 - q1
-                    normalized_dataset[column] = (normalized_dataset[column] - q2) / iqr
+                    if column not in self.classes_to_determine:
+                        q1 = normalized_dataset[column].quantile(0.25)
+                        q2 = normalized_dataset[column].quantile(0.5)
+                        q3 = normalized_dataset[column].quantile(0.75)
+                        iqr = q3 - q1
+                        normalized_dataset[column] = (normalized_dataset[column] - q2) / iqr
             case 'none':
                 pass
             case _:
@@ -143,35 +152,50 @@ class KNN:
         Hart, Peter E. (1968). "The Condensed Nearest Neighbor Rule". IEEE Transactions on Information Theory. 18: 515–516. doi:10.1109/TIT.1968.1054155.
         The tree created during this routine can easily be used for actual KNN, no need to regenerate
         """
+
         keep = []
         discard = []
-        # Implement the CNN reduction algorithm
-        for index, row in control.iterrows():
-            if keep == []:
-                keep = MTree.MTree(KNN_size=self.k,distance_metric=self.distance_metric)
-                keep.insert(row, keep.root)
-            else:
-                neighbours = keep.KNN_search(row, self.k)
-                classification = self.cast_votes(neighbours)
-                t = tuple(row[self.classes_to_determine].to_numpy().tolist())
-                if classification != t:
-                    keep.insert(row, keep.root)
-                else:
-                    discard.append(row)
         
+        # Implement the CNN reduction algorithm
+        match self.knn_method:
+            case 'mtree':
+                for index, row in control.iterrows():
+                    if keep == []:
+                        keep = MTree.MTree(self.df.shape, KNN_size=self.k,distance_metric=self.distance_metric)
+                        keep.insert(row, keep.root)
+                    else:
+                        classification = self.classify_point(row, keep)
+                        t = tuple(row[self.classes_to_determine].to_numpy().tolist())
+                        if classification != t:
+                            keep.insert(row, keep.root)
+                        else:
+                            discard.append(row)
+                
+            case 'bruteforce':
+
+                for index, row in control.iterrows():
+                    if keep == []: keep.append(row)
+                    else:
+                        classification = self.classify_point(row, keep)
+                        t = tuple(row[self.classes_to_determine].to_numpy().tolist())
+                        if classification != t:
+                            keep.append(row)
+                        else:
+                            discard.append(row)
+                         
         changes_made = True
         while changes_made and len(discard):
             changes_made = False
             for i in range(len(discard)):
-                neighbours = keep.KNN_search(discard[i], self.k)
-                classification = self.cast_votes(neighbours)
-                if classification != discard[i].iloc[-1]:
+                classification = self.classify_point(discard[i], keep)
+                t = tuple(discard[i][self.classes_to_determine].to_numpy().tolist())
+                if classification != t:
                     keep.insert(discard[i], keep.root)
                     discard.pop(i)
                     changes_made = True
                     break
-
-        # print(f'Odrzuconych indeksów: {len(discard)}')
+        
+        # print(f'Discarded indices: {len(discard)}')
         return keep, discard
 
     def classify_point(self, point, control):
@@ -180,8 +204,13 @@ class KNN:
                 neighbours = control.KNN_search(point, self.k)
             case 'bruteforce':
                 neighbours = []
-                for _,e in control.iterrows():
-                    neighbours.append((compute_distance(e, point, self.distance_metric), e))
+                if type(control) == pandas.DataFrame:
+                    for _,e in control.iterrows():
+                        neighbours.append((compute_distance(e, point, self.distance_metric), e))
+                else:
+                    for e in control:
+                        neighbours.append((compute_distance(e, point, self.distance_metric), e))
+                
 
                 neighbours = sorted(neighbours,key=lambda e: e[0])[:self.k]
                 neighbours = [(a[1], a[0]) for a in neighbours]
@@ -210,7 +239,7 @@ class KNN:
                 weight = 1 / (distance + 1e-5) 
                 votes[classification] = votes.get(classification, 0) + weight
 
-        return max(votes, key=votes.get)
+        return max(votes, key=votes.get)[0]
     
 
     def classify_test_set(self, control, test):

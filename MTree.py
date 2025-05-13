@@ -1,17 +1,18 @@
 import heapq
 import bisect
-from utility import * 
+from utility import *
+from math import log2 
 
 class MTree:
-    def __init__(self, node_size=20, KNN_size=4, distance_metric = 'euclidean'):
-        self.node_size = node_size
+    def __init__(self, dataframe_shape, KNN_size=4, distance_metric = 'euclidean'):
+        self.node_size = max(4, 2  * dataframe_shape[1], int(log2(dataframe_shape[0])))
         self.KNN_size = KNN_size
-        self.root = MTree.Node(node_size=node_size)
+        self.root = MTree.Node(node_size=self.node_size)
         self.distance_metric = distance_metric
 
 
     class Node:
-        def __init__(self, node_size=4, is_leaf=True, parent=None):
+        def __init__(self, node_size, is_leaf=True, parent=None):
             self.entries = []
             self.is_leaf = is_leaf
             self.parent = parent

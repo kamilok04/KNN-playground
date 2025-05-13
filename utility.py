@@ -13,5 +13,5 @@ def compute_distance(obj1, obj2, metric='euclidean'):
         case 'euclidean': return sum((x - y) ** 2 for x, y in zip(val1, val2)) ** 0.5
         case 'chebyshev': return max(abs(x - y) for x, y in zip(val1, val2))
         case _:
-            print('Unknown metrc!')
+            print('Unknown metric!')
 

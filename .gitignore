@@ -2,3 +2,7 @@ __pycache__
 __pycache__/** 
 financial_fraud_detection_dataset.csv
 .vscode/settings.json
+*.png
+out/**
+out
+*.csv
