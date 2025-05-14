@@ -139,6 +139,7 @@ class KNN:
                         q2 = normalized_dataset[column].quantile(0.5)
                         q3 = normalized_dataset[column].quantile(0.75)
                         iqr = q3 - q1
+                        if iqr == 0: continue
                         normalized_dataset[column] = (normalized_dataset[column] - q2) / iqr
             case 'none':
                 pass

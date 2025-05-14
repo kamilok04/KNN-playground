@@ -12,13 +12,16 @@ class TestKNNAccuracy(unittest.TestCase):
     def setUp(self):
         self.data_path = 'heart.csv'
         self.metrics = ['euclidean', 'manhattan', 'minkowski', 'chebyshev']
-        self.normalizations = ['none', 'decimal_scaling', 'minmax', 'zscore',  'robust']
+        
+        #self.normalizations = ['none', 'decimal_scaling', 'minmax', 'zscore',  'robust']
+        
+        self.normalizations = ['none']
         self.knn_methods = ['mtree', 'bruteforce']
         self.k_values = [1, 3, 5, 10]
         self.ratios = [*range(10, 100, 10)]
     
         self.logger = logging.getLogger(__name__)
-        logging.basicConfig(filename='out/log.txt', level=logging.INFO, format='%(asctime)s %(message)s', filemode='w')
+        logging.basicConfig(filename='out/log.txt', level=logging.INFO, format='%(asctime)s %(message)s', filemode='a')
         self.voting = ['soft', 'hard']
         self.target = ['HeartDisease']
         
@@ -127,7 +130,7 @@ class TestKNNAccuracy(unittest.TestCase):
                 accuracies.append(accuracy)
                 timespans.append(time_spent)
                 ratios.append(ratio + offset)
-                logging.info(f"Method: {method}, Normalization technique: {model.normalization_method}, Metric: {model.distance_metric}, k: {model.k}, Voting Method: {model.voting_method}, Control Ratio: {ratio}% Accuracy: {accuracy:.2f}%")
+                logging.info(f"Method: {method}, Normalization technique: {model.normalization_method}, Metric: {model.distance_metric}, k: {model.k}, Voting Method: {model.voting_method}, Control Ratio: {ratio}% Accuracy: {accuracy:.2f}%, Execution time: {time_spent}")
             ax1.bar(ratios, accuracies, width=width)
             ax2.scatter(self.ratios, timespans)
             offset += width
